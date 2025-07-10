@@ -4,6 +4,7 @@ const cors = require("cors");
 const app = express();
 const port = 3000;
 const { MongoClient, ServerApiVersion } = require("mongodb");
+const jwt = require("jsonwebtoken");
 
 app.use(cors());
 app.use(express.json());
@@ -22,10 +23,92 @@ const client = new MongoClient(uri, {
 });
 
 async function run() {
+  const verifyJwt = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).send({ message: "Unauthorized access: No token" });
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+      if (err) {
+        return res.status(403).send({ message: "Forbidden: Invalid token" });
+      }
+
+      req.user = decoded;
+      if (req.query.email && req.query.email !== decoded.email) {
+        return res.status(403).send({ message: "Forbidden: Email mismatch" });
+      }
+
+      next();
+    });
+  };
+
+  const verifyAdmin = (req, res, next) => {
+    if (req.user.role !== "admin") {
+      return res.status(403).send({ message: "Forbidden: Admins only" });
+    }
+    next();
+  };
+
   try {
     await client.connect();
-    const db = client.db('TourNest')
-    const usersCollection = db.collection('usersCollection')
+    const db = client.db("TourNest");
+    const usersCollection = db.collection("usersCollection");
+    const packagesCollection = db.collection("packagesCollection");
+
+    // JWT API
+    app.post("/jwt", async (req, res) => {
+      const { email } = req.body;
+      const user = await usersCollection.findOne({ email });
+      if (!user) return res.status(403).send({ message: "Unauthorized" });
+
+      const payload = { email: user.email, role: user.role };
+      const token = jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: "1d",
+      });
+
+      res.send({ token });
+    });
+
+    // users api
+    app.get("/users", verifyJwt, verifyAdmin, async (req, res) => {
+      try {
+        const {
+          page = 1,
+          limit = 10,
+          search = "",
+          searchType = "name",
+          role = "",
+        } = req.query;
+
+        const query = {};
+        if (search) {
+          const regex = new RegExp(search, "i");
+          if (searchType === "email") {
+            query.email = regex;
+          } else {
+            query.name = regex;
+          }
+        }
+        if (role) {
+          query.role = role;
+        }
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const total = await usersCollection.countDocuments(query);
+        const users = await usersCollection
+          .find(query)
+          .skip(skip)
+          .limit(parseInt(limit))
+          .toArray();
+
+        res.send({ users, total });
+      } catch (err) {
+        res.status(500).send({ message: "Server error", error: err.message });
+      }
+    });
 
     app.post("/users", async (req, res) => {
       const user = req.body;
@@ -38,7 +121,6 @@ async function run() {
           { email },
           { $set: { last_log_in: new Date().toISOString() } }
         );
-
         return res.status(200).send({
           message: "User already exists, last_log_in updated",
           updated: updateResult.modifiedCount > 0,
@@ -49,10 +131,19 @@ async function run() {
       res.send(result);
     });
 
+    // Packages API
+    app.post("/packages", verifyJwt, verifyAdmin, async (req, res) => {
+      try {
+        const newPackage = req.body;
+        const result = await packagesCollection.insertOne(newPackage);
+        res.send(result);
+      } catch (err) {
+        res.status(500).send({ error: err.message });
+      }
+    });
+
     await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    console.log("Connected to MongoDB!");
   } finally {
   }
 }
