@@ -170,7 +170,25 @@ async function run() {
       }
     });
 
+    // applications api
+    app.post("/applications", verifyJwt, verifyTourist, async (req, res) => {
+      try {
+        const { email } = req.body;
 
+        // Check if already applied
+        const exists = await applicationsCollection.findOne({ email });
+        if (exists) {
+          return res.send({ message: "You have already applied." });
+        }
+
+        const newCandidate = req.body;
+
+        const result = await applicationsCollection.insertOne(newCandidate);
+        res.send(result);
+      } catch (error) {
+        res.status(500).json({ message: error.message });
+      }
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB!");
