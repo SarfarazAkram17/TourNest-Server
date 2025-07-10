@@ -36,10 +36,10 @@ async function run() {
         return res.status(403).send({ message: "Forbidden: Invalid token" });
       }
 
-      req.user = decoded;
-      if (req.query.email && req.query.email !== decoded.email) {
+      if (req.query.email !== decoded.email) {
         return res.status(403).send({ message: "Forbidden: Email mismatch" });
       }
+      req.user = decoded;
 
       next();
     });
@@ -52,11 +52,19 @@ async function run() {
     next();
   };
 
+  const verifyTourist = (req, res, next) => {
+    if (req.user.role !== "tourist") {
+      return res.status(403).send({ message: "Forbidden: Tourists only" });
+    }
+    next();
+  };
+
   try {
     await client.connect();
     const db = client.db("TourNest");
     const usersCollection = db.collection("usersCollection");
     const packagesCollection = db.collection("packagesCollection");
+    const applicationsCollection = db.collection("applicationsCollection");
 
     // JWT API
     app.post("/jwt", async (req, res) => {
@@ -110,6 +118,26 @@ async function run() {
       }
     });
 
+    app.get("/users/:email/role", async (req, res) => {
+      try {
+        const email = req.params.email;
+
+        if (!email) {
+          return res.status(400).send({ message: "Email is required" });
+        }
+
+        const user = await usersCollection.findOne({ email });
+
+        if (!user) {
+          return res.status(404).send({ message: "User not found" });
+        }
+
+        res.send({ role: user.role });
+      } catch (error) {
+        res.status(500).send({ message: error.message });
+      }
+    });
+
     app.post("/users", async (req, res) => {
       const user = req.body;
       const email = user.email;
@@ -141,6 +169,8 @@ async function run() {
         res.status(500).send({ error: err.message });
       }
     });
+
+
 
     await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB!");
