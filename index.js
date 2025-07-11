@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 const port = 3000;
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
 
 app.use(cors());
@@ -61,6 +61,7 @@ async function run() {
 
   try {
     await client.connect();
+
     const db = client.db("TourNest");
     const usersCollection = db.collection("usersCollection");
     const packagesCollection = db.collection("packagesCollection");
@@ -70,7 +71,6 @@ async function run() {
     app.post("/jwt", async (req, res) => {
       const { email } = req.body;
       const user = await usersCollection.findOne({ email });
-      if (!user) return res.status(403).send({ message: "Unauthorized" });
 
       const payload = { email: user.email, role: user.role };
       const token = jwt.sign(payload, process.env.JWT_SECRET, {
@@ -171,6 +171,40 @@ async function run() {
     });
 
     // applications api
+    app.get("/applications", verifyJwt, verifyAdmin, async (req, res) => {
+      try {
+        const {
+          page = 1,
+          limit = 10,
+          status = "pending",
+          search = "",
+          region = "",
+        } = req.query;
+
+        const query = { status };
+
+        if (search) {
+          query.name = new RegExp(search, "i");
+        }
+        if (region) {
+          query.region = region;
+        }
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const total = await applicationsCollection.countDocuments(query);
+
+        const applications = await applicationsCollection
+          .find(query)
+          .skip(skip)
+          .limit(parseInt(limit))
+          .toArray();
+
+        res.send({ applications, total });
+      } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+      }
+    });
+
     app.post("/applications", verifyJwt, verifyTourist, async (req, res) => {
       try {
         const { email } = req.body;
@@ -189,6 +223,8 @@ async function run() {
         res.status(500).json({ message: error.message });
       }
     });
+
+
 
     await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB!");
