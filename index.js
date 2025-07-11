@@ -224,7 +224,25 @@ async function run() {
       }
     });
 
-   
+    app.patch("/applications", verifyJwt, verifyAdmin, async (req, res) => {
+      try {
+        const { candidateEmail, role } = req.body;
+        if (!candidateEmail || !role) {
+          return res.status(400).send({ message: "Email and role required." });
+        }
+
+        const updateResult = await usersCollection.updateOne(
+          { email: candidateEmail },
+          { $set: { role } }
+        );
+
+        res.send(updateResult);
+      } catch (error) {
+        res
+          .status(500)
+          .send({ message: "Failed to promote user", error: error.message });
+      }
+    });
 
     app.delete(
       "/applications/:id",
