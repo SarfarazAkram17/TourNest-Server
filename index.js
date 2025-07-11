@@ -224,7 +224,27 @@ async function run() {
       }
     });
 
+   
 
+    app.delete(
+      "/applications/:id",
+      verifyJwt,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const id = req.params.id;
+          const result = await applicationsCollection.deleteOne({
+            _id: new ObjectId(id),
+          });
+          res.send(result);
+        } catch (error) {
+          res.status(500).send({
+            message: "Failed to delete application",
+            error: error.message,
+          });
+        }
+      }
+    );
 
     await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB!");
