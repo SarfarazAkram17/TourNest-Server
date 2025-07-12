@@ -318,6 +318,42 @@ async function run() {
     );
 
     // bookings api
+    app.get("/bookings", verifyJwt, async (req, res) => {
+      try {
+        const { email, page = 1, limit = 10, search = "" } = req.query;
+
+        if (!email) {
+          return res.status(400).send({ message: "Email is required" });
+        }
+
+        const query = {
+          touristEmail: email,
+        };
+
+        if (search) {
+          query.packageName = { $regex: new RegExp(search, "i") };
+        }
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        const total = await bookingsCollection.countDocuments(query);
+
+        const bookings = await bookingsCollection
+          .find(query)
+          .sort({ bookingAt: -1 })
+          .skip(skip)
+          .limit(parseInt(limit))
+          .toArray();
+
+        res.send({ bookings, total });
+      } catch (error) {
+        res.status(500).send({
+          message: "Failed to fetch bookings",
+          error: error.message,
+        });
+      }
+    });
+
     app.post("/bookings", verifyJwt, async (req, res) => {
       const bookingDetails = req.body;
       const { packageId, touristEmail } = bookingDetails;
@@ -327,6 +363,7 @@ async function run() {
           packageId,
           touristEmail,
           payment_status: "not_paid",
+          status: { $ne: "cancelled" },
         });
 
         if (existingBooking) {
@@ -337,12 +374,48 @@ async function run() {
           });
         }
 
+        // If no conflicting booking found, insert new booking
         const result = await bookingsCollection.insertOne(bookingDetails);
         res.send(result);
       } catch (error) {
         res.status(500).send({
           error: true,
           message: "Something went wrong while processing your booking.",
+        });
+      }
+    });
+
+    app.patch("/bookings/:id", verifyJwt, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { status } = req.body;
+
+        if (!status) {
+          return res.status(400).send({ message: "Status is required" });
+        }
+
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            status,
+            updatedAt: new Date().toISOString(),
+          },
+        };
+
+        const result = await bookingsCollection.updateOne(filter, updateDoc);
+
+        if (result.matchedCount === 0) {
+          return res.status(404).send({ message: "Booking not found" });
+        }
+
+        res.send({
+          message: "Booking status updated",
+          modifiedCount: result.modifiedCount,
+        });
+      } catch (error) {
+        res.status(500).send({
+          message: "Failed to update booking status",
+          error: error.message,
         });
       }
     });
