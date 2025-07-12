@@ -160,6 +160,15 @@ async function run() {
     });
 
     // Packages API
+    app.get("/packages", async (req, res) => {
+      try {
+        const result = await packagesCollection.find().toArray();
+        res.send(result);
+      } catch (err) {
+        res.status(500).send({ error: "Failed to fetch packages" });
+      }
+    });
+
     app.post("/packages", verifyJwt, verifyAdmin, async (req, res) => {
       try {
         const newPackage = req.body;
