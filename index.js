@@ -66,6 +66,7 @@ async function run() {
     const usersCollection = db.collection("usersCollection");
     const packagesCollection = db.collection("packagesCollection");
     const applicationsCollection = db.collection("applicationsCollection");
+    const bookingsCollection = db.collection("bookingsCollection");
 
     // JWT API
     app.post("/jwt", async (req, res) => {
@@ -296,7 +297,11 @@ async function run() {
       }
     });
 
-    app.delete("/applications/:id", verifyJwt, verifyAdmin, async (req, res) => {
+    app.delete(
+      "/applications/:id",
+      verifyJwt,
+      verifyAdmin,
+      async (req, res) => {
         try {
           const id = req.params.id;
           const result = await applicationsCollection.deleteOne({
@@ -311,6 +316,36 @@ async function run() {
         }
       }
     );
+
+    // bookings api
+    app.post("/bookings", verifyJwt, async (req, res) => {
+      const bookingDetails = req.body;
+      const { packageId, touristEmail } = bookingDetails;
+
+      try {
+        const existingBooking = await bookingsCollection.findOne({
+          packageId,
+          touristEmail,
+          payment_status: "not_paid",
+        });
+
+        if (existingBooking) {
+          return res.status(409).send({
+            error: true,
+            message:
+              "You have already booked this package and not completed payment.",
+          });
+        }
+
+        const result = await bookingsCollection.insertOne(bookingDetails);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({
+          error: true,
+          message: "Something went wrong while processing your booking.",
+        });
+      }
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB!");
