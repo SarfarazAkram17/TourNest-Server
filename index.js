@@ -138,6 +138,17 @@ async function run() {
       }
     });
 
+    app.get("/users/tour-guide", async (req, res) => {
+      try {
+        const query = { role: "tour guide" };
+        const tourGuides = await usersCollection.find(query).toArray();
+
+        res.send(tourGuides);
+      } catch (error) {
+        res.status(500).send({ message: error.message });
+      }
+    });
+
     app.post("/users", async (req, res) => {
       const user = req.body;
       const email = user.email;
@@ -166,6 +177,24 @@ async function run() {
         res.send(result);
       } catch (err) {
         res.status(500).send({ error: "Failed to fetch packages" });
+      }
+    });
+
+    app.get("/packages/:id", async (req, res) => {
+      const id = req.params.id;
+
+      try {
+        const result = await packagesCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!result) {
+          return res.status(404).send({ message: "Package not found" });
+        }
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch package", error });
       }
     });
 
@@ -235,14 +264,28 @@ async function run() {
 
     app.patch("/applications", verifyJwt, verifyAdmin, async (req, res) => {
       try {
-        const { candidateEmail, role } = req.body;
+        const { role, candidate } = req.body;
+        const candidateEmail = candidate.email;
+        const guideInfo = {
+          name: candidate.name,
+          email: candidate.email,
+          phone: candidate.phone,
+          region: candidate.region,
+          district: candidate.district,
+          experience: candidate.experience,
+          languages: candidate.languages,
+          age: candidate.age,
+          photo: candidate.photo,
+          tourGuideAt: new Date().toISOString(),
+        };
+
         if (!candidateEmail || !role) {
           return res.status(400).send({ message: "Email and role required." });
         }
 
         const updateResult = await usersCollection.updateOne(
           { email: candidateEmail },
-          { $set: { role } }
+          { $set: { role, guideInfo } }
         );
 
         res.send(updateResult);
@@ -253,11 +296,7 @@ async function run() {
       }
     });
 
-    app.delete(
-      "/applications/:id",
-      verifyJwt,
-      verifyAdmin,
-      async (req, res) => {
+    app.delete("/applications/:id", verifyJwt, verifyAdmin, async (req, res) => {
         try {
           const id = req.params.id;
           const result = await applicationsCollection.deleteOne({
