@@ -5,6 +5,7 @@ const app = express();
 const port = 3000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
+const stripe = require("stripe")(process.env.PAYMENT_GATEWAY_KEY);
 
 app.use(cors());
 app.use(express.json());
@@ -67,6 +68,26 @@ async function run() {
     const packagesCollection = db.collection("packagesCollection");
     const applicationsCollection = db.collection("applicationsCollection");
     const bookingsCollection = db.collection("bookingsCollection");
+    const paymentsCollection = db.collection("paymentsCollection");
+
+    // stripe payment intent
+    app.post("/create-payment-intent", verifyJwt, async (req, res) => {
+      try {
+        const { price } = req.body;
+
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: price * 100,
+          currency: "bdt",
+          payment_method_types: ["card"],
+        });
+
+        res.send({
+          clientSecret: paymentIntent.client_secret,
+        });
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
 
     // JWT API
     app.post("/jwt", async (req, res) => {
@@ -354,6 +375,26 @@ async function run() {
       }
     });
 
+    app.get("/bookings/:id", verifyJwt, async (req, res) => {
+      try {
+        const bookingId = req.params.id;
+
+        const booking = await bookingsCollection.findOne({
+          _id: new ObjectId(bookingId),
+        });
+
+        if (!booking) {
+          return res.status(404).send({ message: "Booking not found" });
+        }
+
+        res.send(booking);
+      } catch (error) {
+        res
+          .status(500)
+          .send({ message: "Failed to fetch booking", error: error.message });
+      }
+    });
+
     app.post("/bookings", verifyJwt, async (req, res) => {
       const bookingDetails = req.body;
       const { packageId, touristEmail } = bookingDetails;
@@ -417,6 +458,38 @@ async function run() {
           message: "Failed to update booking status",
           error: error.message,
         });
+      }
+    });
+
+    // payments api
+    app.post("/payments", verifyJwt, async (req, res) => {
+      try {
+        const payment = req.body;
+        payment.paymentAt = new Date().toISOString();
+
+        // Save payment record
+        const result = await paymentsCollection.insertOne(payment);
+
+        // Update booking status
+        const update = await bookingsCollection.updateOne(
+          { _id: new ObjectId(payment.bookingId) },
+          {
+            $set: {
+              status: "in review",
+              payment_status: "paid",
+              updatedAt: new Date().toISOString(),
+            },
+          }
+        );
+
+        res.send({
+          insertedId: result.insertedId,
+          updatedBooking: update.modifiedCount > 0,
+        });
+      } catch (error) {
+        res
+          .status(500)
+          .send({ message: "Failed to process payment", error: error.message });
       }
     });
 
