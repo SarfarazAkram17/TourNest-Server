@@ -68,7 +68,7 @@ async function run() {
   };
 
   try {
-    // await client.connect();
+    await client.connect();
 
     const db = client.db("TourNest");
     const usersCollection = db.collection("usersCollection");
@@ -173,6 +173,17 @@ async function run() {
         const tourGuides = await usersCollection.find(query).toArray();
 
         res.send(tourGuides);
+      } catch (error) {
+        res.status(500).send({ message: error.message });
+      }
+    });
+
+    app.get("/users/tour-guide/:id", async (req, res) => {
+      try {
+        const query = { _id: new ObjectId(req.params.id) };
+        const tourGuide = await usersCollection.findOne(query);
+
+        res.send(tourGuide);
       } catch (error) {
         res.status(500).send({ message: error.message });
       }
@@ -305,6 +316,7 @@ async function run() {
           languages: candidate.languages,
           age: candidate.age,
           photo: candidate.photo,
+          bio: candidate.bio,
           tourGuideAt: new Date().toISOString(),
         };
 
@@ -449,7 +461,7 @@ async function run() {
           packageId,
           touristEmail,
           payment_status: "not_paid",
-          status: { $ne: "cancelled" },
+          status: { $nin: ["cancelled", "rejected"] },
         });
 
         if (existingBooking) {
@@ -460,7 +472,6 @@ async function run() {
           });
         }
 
-        // If no conflicting booking found, insert new booking
         const result = await bookingsCollection.insertOne(bookingDetails);
         res.send(result);
       } catch (error) {
@@ -476,7 +487,7 @@ async function run() {
         const id = req.params.id;
         const { status } = req.body;
 
-        if (status === "accepted" || status === 'rejected') {
+        if (status === "accepted" || status === "rejected") {
           if (req.user.role !== "tour guide") {
             return res
               .status(403)
@@ -546,7 +557,7 @@ async function run() {
       }
     });
 
-    // await client.db("admin").command({ ping: 1 });
+    await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB!");
   } finally {
   }
