@@ -167,6 +167,20 @@ async function run() {
       }
     });
 
+    app.get("/random-tour-guides", async (req, res) => {
+      try {
+        const tourGuides = await usersCollection
+          .aggregate([
+            { $match: { role: "tour guide" } },
+            { $sample: { size: 6 } },
+          ])
+          .toArray();
+        res.send(tourGuides);
+      } catch (error) {
+        res.status(500).send({ message: error.message });
+      }
+    });
+
     app.get("/users/tour-guide", async (req, res) => {
       try {
         const query = { role: "tour guide" };
@@ -211,6 +225,17 @@ async function run() {
     });
 
     // Packages API
+    app.get("/random-packages", async (req, res) => {
+      try {
+        const packages = await packagesCollection
+          .aggregate([{ $sample: { size: 3 } }])
+          .toArray();
+        res.send(packages);
+      } catch (error) {
+        res.status(500).send({ message: error.message });
+      }
+    });
+
     app.get("/packages", async (req, res) => {
       try {
         const result = await packagesCollection.find().toArray();
