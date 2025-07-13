@@ -60,8 +60,15 @@ async function run() {
     next();
   };
 
+  const verifyTourGuide = (req, res, next) => {
+    if (req.user.role !== "tour guide") {
+      return res.status(403).send({ message: "Forbidden: Tour guides only" });
+    }
+    next();
+  };
+
   try {
-    await client.connect();
+    // await client.connect();
 
     const db = client.db("TourNest");
     const usersCollection = db.collection("usersCollection");
@@ -395,6 +402,44 @@ async function run() {
       }
     });
 
+    app.get(
+      "/bookings/tourGuide/assigned",
+      verifyJwt,
+      verifyTourGuide,
+      async (req, res) => {
+        try {
+          const { email, page = 1, limit = 10, search = "" } = req.query;
+
+          if (!email) {
+            return res.status(400).send({ message: "Email is required" });
+          }
+
+          const query = {
+            tourGuideEmail: email,
+            status: { $ne: "cancelled" },
+          };
+
+          if (search) {
+            query.packageName = { $regex: new RegExp(search, "i") };
+          }
+
+          const skip = (parseInt(page) - 1) * parseInt(limit);
+          const total = await bookingsCollection.countDocuments(query);
+
+          const bookings = await bookingsCollection
+            .find(query)
+            .sort({ bookingAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit))
+            .toArray();
+
+          res.send({ bookings, total });
+        } catch (error) {
+          res.status(500).send({ message: error.message });
+        }
+      }
+    );
+
     app.post("/bookings", verifyJwt, async (req, res) => {
       const bookingDetails = req.body;
       const { packageId, touristEmail } = bookingDetails;
@@ -430,6 +475,14 @@ async function run() {
       try {
         const id = req.params.id;
         const { status } = req.body;
+
+        if (status === "accepted" || status === 'rejected') {
+          if (req.user.role !== "tour guide") {
+            return res
+              .status(403)
+              .send({ message: "Forbidden: Tour guides only" });
+          }
+        }
 
         if (!status) {
           return res.status(400).send({ message: "Status is required" });
@@ -493,7 +546,7 @@ async function run() {
       }
     });
 
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB!");
   } finally {
   }
