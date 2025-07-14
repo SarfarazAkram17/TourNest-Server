@@ -76,6 +76,7 @@ async function run() {
     const applicationsCollection = db.collection("applicationsCollection");
     const bookingsCollection = db.collection("bookingsCollection");
     const paymentsCollection = db.collection("paymentsCollection");
+    const storiesCollection = db.collection("storiesCollection");
 
     // stripe payment intent
     app.post("/create-payment-intent", verifyJwt, async (req, res) => {
@@ -238,8 +239,24 @@ async function run() {
 
     app.get("/packages", async (req, res) => {
       try {
-        const result = await packagesCollection.find().toArray();
-        res.send(result);
+        const page = parseInt(req.query.page);
+        const limit = 10;
+        const skip = (page - 1) * limit;
+
+        const total = await packagesCollection.countDocuments();
+
+        const packages = await packagesCollection
+          .find()
+          .sort({ _id: -1 })
+          .skip(skip)
+          .limit(limit)
+          .toArray();
+
+        res.send({
+          packages,
+          total,
+          limit,
+        });
       } catch (err) {
         res.status(500).send({ error: "Failed to fetch packages" });
       }
@@ -579,6 +596,65 @@ async function run() {
         res
           .status(500)
           .send({ message: "Failed to process payment", error: error.message });
+      }
+    });
+
+    // stories api
+    app.get("/stories", async (req, res) => {
+      try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = 10;
+        const skip = (page - 1) * limit;
+
+        const total = await storiesCollection.countDocuments();
+
+        const stories = await storiesCollection
+          .find()
+          .sort({ uploadedAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .toArray();
+
+        res.send({
+          total,
+          limit,
+          stories,
+        });
+      } catch (err) {
+        res
+          .status(500)
+          .send({ message: "Failed to fetch stories", error: err.message });
+      }
+    });
+
+    app.post("/stories", verifyJwt, async (req, res) => {
+      try {
+        const story = req.body;
+
+        if (
+          !story.title ||
+          !story.description ||
+          !story.location ||
+          !story.images?.length ||
+          !story.name ||
+          !story.email ||
+          !story.photo ||
+          !story.role
+        ) {
+          return res.status(400).send({ message: "Missing required fields" });
+        }
+
+        const newStory = {
+          ...story,
+          uploadedAt: new Date().toISOString(),
+        };
+
+        const result = await storiesCollection.insertOne(newStory);
+        res.send(result);
+      } catch (err) {
+        res
+          .status(500)
+          .send({ message: "Failed to add story", error: err.message });
       }
     });
 
