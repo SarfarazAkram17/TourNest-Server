@@ -608,25 +608,29 @@ async function run() {
 
         res.send(randomStories);
       } catch (error) {
-        res
-          .status(500)
-          .send({
-            message: "Failed to fetch random stories",
-            error: error.message,
-          });
+        res.status(500).send({
+          message: "Failed to fetch random stories",
+          error: error.message,
+        });
       }
     });
 
     app.get("/stories", async (req, res) => {
       try {
-        const page = parseInt(req.query.page) || 1;
+        const email = req.query.email;
+        const page = parseInt(req.query.page);
         const limit = 10;
         const skip = (page - 1) * limit;
 
-        const total = await storiesCollection.countDocuments();
+        const query = {};
 
+        if (email) {
+          query.email = email;
+        }
+
+        const total = await storiesCollection.countDocuments(query);
         const stories = await storiesCollection
-          .find()
+          .find(query)
           .sort({ uploadedAt: -1 })
           .skip(skip)
           .limit(limit)
