@@ -600,6 +600,23 @@ async function run() {
     });
 
     // stories api
+    app.get("/random-stories", async (req, res) => {
+      try {
+        const randomStories = await storiesCollection
+          .aggregate([{ $sample: { size: 4 } }])
+          .toArray();
+
+        res.send(randomStories);
+      } catch (error) {
+        res
+          .status(500)
+          .send({
+            message: "Failed to fetch random stories",
+            error: error.message,
+          });
+      }
+    });
+
     app.get("/stories", async (req, res) => {
       try {
         const page = parseInt(req.query.page) || 1;
