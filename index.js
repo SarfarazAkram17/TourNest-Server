@@ -648,6 +648,26 @@ async function run() {
       }
     });
 
+    app.get("/stories/:id", verifyJwt, async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const story = await storiesCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!story) {
+          return res.status(404).send({ message: "Story not found" });
+        }
+
+        res.send(story);
+      } catch (error) {
+        res
+          .status(500)
+          .send({ message: "Failed to fetch story", error: error.message });
+      }
+    });
+
     app.post("/stories", verifyJwt, async (req, res) => {
       try {
         const story = req.body;
@@ -676,6 +696,23 @@ async function run() {
         res
           .status(500)
           .send({ message: "Failed to add story", error: err.message });
+      }
+    });
+
+   
+
+    app.delete("/stories/:id", verifyJwt, async (req, res) => {
+      try {
+        const storyId = req.params.id;
+
+        const result = await storiesCollection.deleteOne({
+          _id: new ObjectId(storyId),
+        });
+        res.send(result);
+      } catch (error) {
+        res
+          .status(500)
+          .send({ message: "Failed to delete story.", error: error.message });
       }
     });
 
