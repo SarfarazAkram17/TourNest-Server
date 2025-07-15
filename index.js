@@ -204,6 +204,30 @@ async function run() {
       }
     });
 
+    app.get("/users/guide-info", verifyJwt, async (req, res) => {
+      try {
+        const email = req.query.email;
+        if (!email) {
+          return res
+            .status(400)
+            .send({ message: "Email query parameter is required" });
+        }
+
+        const guideUser = await usersCollection.findOne({
+          "guideInfo.email": email,
+        });
+
+        if (!guideUser || !guideUser.guideInfo) {
+          return res.status(404).send({ message: "Tour guide info not found" });
+        }
+
+        res.send(guideUser.guideInfo);
+      } catch (error) {
+        console.error("Error fetching tour guide info:", error);
+        res.status(500).send({ message: "Server error", error: error.message });
+      }
+    });
+
     app.post("/users", async (req, res) => {
       const user = req.body;
       const email = user.email;
@@ -224,6 +248,61 @@ async function run() {
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
+
+    app.patch(
+      "/users/guide-info",
+      verifyJwt,
+      verifyTourGuide,
+      async (req, res) => {
+        try {
+          const email = req.query.email;
+          if (!email) {
+            return res
+              .status(400)
+              .send({ message: "Email query parameter is required" });
+          }
+
+          // Only allow these fields to be updated inside guideInfo
+          const allowedFields = [
+            "name",
+            "phone",
+            "region",
+            "district",
+            "experience",
+            "age",
+            "bio",
+            "languages",
+            "photo",
+          ];
+
+          const updateGuideInfo = { updatedAt: new Date().toISOString() };
+          for (const field of allowedFields) {
+            if (field in req.body) {
+              updateGuideInfo[`guideInfo.${field}`] = req.body[field];
+            }
+          }
+
+          const result = await usersCollection.updateOne(
+            { email },
+            { $set: updateGuideInfo }
+          );
+
+          if (result.matchedCount === 0) {
+            return res.status(404).send({ message: "Guide not found" });
+          }
+
+          res.send({
+            message: "Guide info updated successfully",
+            modified: result.modifiedCount,
+          });
+        } catch (error) {
+          console.error("Error updating guideInfo:", error);
+          res
+            .status(500)
+            .send({ message: "Server error", error: error.message });
+        }
+      }
+    );
 
     // Packages API
     app.get("/random-packages", async (req, res) => {
