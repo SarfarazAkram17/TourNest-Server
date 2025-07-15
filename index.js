@@ -727,7 +727,7 @@ async function run() {
       }
     });
 
-    app.get("/stories/:id", verifyJwt, async (req, res) => {
+    app.get("/stories/:id", async (req, res) => {
       try {
         const id = req.params.id;
 
@@ -843,6 +843,34 @@ async function run() {
         res
           .status(500)
           .send({ message: "Failed to delete story.", error: error.message });
+      }
+    });
+
+    // admin stats
+    app.get("/admin/stats", verifyJwt, verifyAdmin, async (req, res) => {
+      try {
+        const totalPaymentsResult = await paymentsCollection
+          .aggregate([{ $group: { _id: null, total: { $sum: "$price" } } }])
+          .toArray();
+
+        const totalTourGuides = await usersCollection.countDocuments({
+          role: "tour guide",
+        });
+        const totalClients = await usersCollection.countDocuments({
+          role: "tourist",
+        });
+        const totalPackages = await packagesCollection.countDocuments();
+        const totalStories = await storiesCollection.countDocuments();
+
+        res.send({
+          totalPayments: totalPaymentsResult[0]?.total || 0,
+          totalTourGuides,
+          totalClients,
+          totalPackages,
+          totalStories,
+        });
+      } catch (error) {
+        res.status(500).send({ message: "Server error", error: error.message });
       }
     });
 
