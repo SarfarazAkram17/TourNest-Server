@@ -699,7 +699,58 @@ async function run() {
       }
     });
 
-   
+    app.patch("/stories/:id", verifyJwt, async (req, res) => {
+      try {
+        const storyId = req.params.id;
+        const {
+          title,
+          description,
+          location,
+          imagesToAdd = [],
+          imagesToRemove = [],
+        } = req.body;
+
+        const query = { _id: new ObjectId(storyId) };
+        const story = await storiesCollection.findOne(query);
+
+        if (!story) {
+          return res.status(404).json({ error: "Story not found" });
+        }
+
+        // Step 1: Apply $set and $pull
+        const update1 = {
+          $set: {
+            title,
+            description,
+            location,
+            updatedAt: new Date().toISOString(),
+          },
+        };
+
+        if (imagesToRemove.length > 0) {
+          update1.$pull = {
+            images: { $in: imagesToRemove },
+          };
+        }
+
+        await storiesCollection.updateOne(query, update1);
+
+        // Step 2: Apply $push (if any)
+        if (imagesToAdd.length > 0) {
+          const update2 = {
+            $push: {
+              images: { $each: imagesToAdd },
+            },
+          };
+          await storiesCollection.updateOne(query, update2);
+        }
+
+        res.send({ success: true, message: "Story updated successfully" });
+      } catch (error) {
+        console.error("Error updating story:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
 
     app.delete("/stories/:id", verifyJwt, async (req, res) => {
       try {
