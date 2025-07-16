@@ -6,8 +6,8 @@ This is the backend server for **TourNest**, a full-stack tourism and travel man
 
 ## 🔗 Live Project
 
-- 🌐 **Frontend**: [https://tournest-sarfaraz-akram.netlify.app](https://tournest-sarfaraz-akram.netlify.app)
-
+- 🌐 **Website**: [https://tournest-sarfaraz-akram.netlify.app](https://tournest-sarfaraz-akram.netlify.app)
+- 🧠 **Frontend Repository**: [GitHub – TourNest Client](https://github.com/SarfarazAkram17/TourNest-Client)
 ---
 
 ## 🧰 Tech Stack
@@ -124,3 +124,8 @@ This is the backend server for **TourNest**, a full-stack tourism and travel man
 | `GET`  | `/admin/stats` | `verifyJwt`, `verifyAdmin` | Get totals: payments, guides, clients, stories, packages |
 
 ---
+
+# 🛠️ Getting Started
+
+git clone https://github.com/SarfarazAkram17/TourNest-Server <br />
+cd TourNest-Server
