@@ -319,7 +319,7 @@ async function run() {
     app.get("/packages", async (req, res) => {
       try {
         const page = parseInt(req.query.page);
-        const limit = 10;
+        const limit = 12;
         const skip = (page - 1) * limit;
 
         const total = await packagesCollection.countDocuments();
@@ -682,7 +682,7 @@ async function run() {
     app.get("/random-stories", async (req, res) => {
       try {
         const randomStories = await storiesCollection
-          .aggregate([{ $sample: { size: 4 } }])
+          .aggregate([{ $sample: { size: 3 } }])
           .toArray();
 
         res.send(randomStories);
@@ -698,7 +698,7 @@ async function run() {
       try {
         const email = req.query.email;
         const page = parseInt(req.query.page);
-        const limit = 10;
+        const limit = 12;
         const skip = (page - 1) * limit;
 
         const query = {};
