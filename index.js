@@ -910,6 +910,113 @@ async function run() {
       }
     });
 
+ 
+
+    app.get(
+      "/tourGuide/stats",
+      verifyJwt,
+      verifyTourGuide,
+      async (req, res) => {
+        try {
+          const email = req.query.email;
+          if (!email) {
+            return res.status(400).send({ message: "Email is required" });
+          }
+
+          const today = new Date();
+
+          // Fetch all bookings assigned to this tour guide
+          const bookings = await bookingsCollection
+            .find({ tourGuideEmail: email })
+            .toArray();
+
+          // Fetch all package info to get tourPlan length
+          const packageIds = bookings.map((b) => b.packageId);
+          const packages = await packagesCollection
+            .find({ _id: { $in: packageIds.map((id) => new ObjectId(id)) } })
+            .toArray();
+
+          let totalBookings = bookings.length;
+          let upcomingTours = 0;
+          let completedTours = 0;
+          let rejectedTours = 0;
+
+          const packageCountMap = {}; // Count tours per package
+
+          bookings.forEach((booking) => {
+            const pkg = packages.find(
+              (p) => p._id.toString() === booking.packageId
+            );
+            const tourPlanLength = pkg?.tourPlan?.length || 1;
+
+            const tourStart = new Date(booking.tourDate);
+            const tourEnd = new Date(tourStart);
+            tourEnd.setDate(tourEnd.getDate() + tourPlanLength);
+
+            const status = booking.status;
+
+            // Upcoming: bookingAt in future, status accepted or in review
+            if (
+              tourStart > today &&
+              (status === "accepted" || status === "in review")
+            ) {
+              upcomingTours++;
+            }
+
+            // Completed: tourEnd < today and status accepted
+            if (tourEnd < today && status === "accepted") {
+              completedTours++;
+            }
+
+            // Cancelled / Rejected
+            if (status === "rejected") {
+              rejectedTours++;
+            }
+
+            // Count per package (exclude cancelled/rejected)
+            if (
+              booking.packageName &&
+              status !== "cancelled" &&
+              status !== "rejected"
+            ) {
+              packageCountMap[booking.packageName] =
+                (packageCountMap[booking.packageName] || 0) + 1;
+            }
+          });
+
+          // Prepare tour distribution for pie chart
+          const tourDistribution = [
+            { name: "Completed", value: completedTours },
+            { name: "Upcoming", value: upcomingTours },
+            { name: "Rejected", value: rejectedTours },
+          ];
+
+          // Prepare tours per package for bar chart
+          const toursPerPackage = Object.entries(packageCountMap).map(
+            ([packageName, count]) => ({
+              package: packageName,
+              count,
+            })
+          );
+
+          res.send({
+            stats: {
+              totalBookings,
+              upcomingTours,
+              completedTours,
+              rejectedTours,
+            },
+            tourDistribution,
+            toursPerPackage,
+          });
+        } catch (error) {
+          res
+            .status(500)
+            .send({ message: "Server error", error: error.message });
+        }
+      }
+    );
+
     await client.db("admin").command({ ping: 1 });
     console.log("Connected to MongoDB!");
   } finally {
