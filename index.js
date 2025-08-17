@@ -910,7 +910,160 @@ async function run() {
       }
     });
 
- 
+    app.get("/tourist/stats", verifyJwt, verifyTourist, async (req, res) => {
+      try {
+        const email = req.query.email;
+        if (!email)
+          return res.status(400).send({ message: "Email is required" });
+
+        const today = new Date();
+
+        // Fetch all bookings for this tourist
+        const bookings = await bookingsCollection
+          .find({ touristEmail: email })
+          .toArray();
+
+        // Fetch all package info for the booked packages
+        const packageIds = bookings.map((b) => b.packageId);
+        const packages = await packagesCollection
+          .find({ _id: { $in: packageIds.map((id) => new ObjectId(id)) } })
+          .toArray();
+
+        // Fetch all package info for the booked packages
+        const bookingIds = bookings.map((b) => b._id.toString());
+        const payments = await paymentsCollection
+          .find({ bookingId: { $in: bookingIds } })
+          .toArray();
+
+        const totalBookings = bookings.length;
+        let upcomingTours = 0;
+        let completedTours = 0;
+        let cancelledTours = 0;
+        let rejectedTours = 0;
+        let pendingPayments = 0;
+        let totalSpent = 0;
+
+        const monthNames = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+        const monthlySpendingMap = {}; // For line chart
+        const spentPerPackageMap = {}; // For bar chart
+
+        const detailedBookings = bookings.map(async (booking) => {
+          const pkg = packages.find(
+            (p) => p._id.toString() === booking.packageId
+          );
+          const tourPlanLength = pkg?.tourPlan?.length || 1;
+
+          const tourStart = new Date(booking.tourDate);
+          const tourEnd = new Date(tourStart);
+          tourEnd.setDate(tourEnd.getDate() + tourPlanLength);
+
+          const status = booking.status;
+          const paymentStatus = booking.payment_status;
+
+          const isUpcoming =
+            tourStart > today && ["accepted", "in review"].includes(status);
+          const isCompleted = tourEnd < today && status === "accepted";
+          const isCancelled = status === "cancelled";
+          const isRejected = status === "rejected";
+          const isPendingPayment =
+            !["cancelled", "rejected"].includes(status) &&
+            paymentStatus !== "paid";
+
+          if (isUpcoming) upcomingTours++;
+          if (isCompleted) completedTours++;
+          if (isCancelled) cancelledTours++;
+          if (isRejected) rejectedTours++;
+          if (isPendingPayment) pendingPayments++;
+          if (paymentStatus === "paid") totalSpent += booking.price;
+
+          // Monthly spending
+          if (paymentStatus === "paid") {
+            const payment = payments.find(
+              (p) => p.bookingId === booking._id.toString()
+            );
+            const monthKey = `${
+              monthNames[new Date(payment.paymentAt).getMonth()]
+            } ${new Date(payment.paymentAt).getFullYear()}`;
+            monthlySpendingMap[monthKey] =
+              (monthlySpendingMap[monthKey] || 0) + booking.price;
+          }
+
+          // Spending per package
+          if (paymentStatus === "paid") {
+            spentPerPackageMap[pkg?.title || booking.packageName] =
+              (spentPerPackageMap[pkg?.title || booking.packageName] || 0) +
+              booking.price;
+          }
+
+          return {
+            bookingId: booking._id,
+            packageId: booking.packageId,
+            packageName: pkg?.title || booking.packageName,
+            tourDate: booking.tourDate,
+            tourGuideName: booking.tourGuideName,
+            tourGuideImage: booking.tourGuideImage,
+            price: booking.price,
+            payment_status: booking.payment_status,
+            status: booking.status,
+            isUpcoming,
+            isCompleted,
+            isCancelled,
+            isRejected,
+            isPendingPayment,
+          };
+        });
+
+        // Convert monthly spending map to array for charts
+        const monthlySpending = Object.entries(monthlySpendingMap).map(
+          ([month, total]) => ({ month, total })
+        );
+
+        // Helper to parse "Aug 2025" into a sortable date
+        const parseMonthYear = (str) => {
+          const [mon, year] = str.split(" ");
+          const monthIndex = monthNames.indexOf(mon);
+          return new Date(parseInt(year), monthIndex, 1);
+        };
+
+        // Sort by year then month
+        monthlySpending.sort(
+          (a, b) => parseMonthYear(a.month) - parseMonthYear(b.month)
+        );
+
+        const spentPerPackage = Object.entries(spentPerPackageMap).map(
+          ([pkg, spent]) => ({ package: pkg, spent })
+        );
+
+        res.send({
+          stats: {
+            totalBookings,
+            upcomingTours,
+            completedTours,
+            cancelledTours,
+            rejectedTours,
+            pendingPayments,
+            totalSpent,
+          },
+          monthlySpending,
+          spentPerPackage,
+        });
+      } catch (error) {
+        res.status(500).send({ message: "Server error", error: error.message });
+      }
+    });
 
     app.get(
       "/tourGuide/stats",
