@@ -1047,6 +1047,13 @@ async function run() {
           ([pkg, spent]) => ({ package: pkg, spent })
         );
 
+        const tourDistribution = [
+          { name: "Upcoming", value: upcomingTours },
+          { name: "Completed", value: completedTours },
+          { name: "Cancelled", value: cancelledTours },
+          { name: "Rejected", value: rejectedTours },
+        ];
+
         res.send({
           stats: {
             totalBookings,
@@ -1059,6 +1066,7 @@ async function run() {
           },
           monthlySpending,
           spentPerPackage,
+          tourDistribution,
         });
       } catch (error) {
         res.status(500).send({ message: "Server error", error: error.message });

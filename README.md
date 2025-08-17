@@ -121,7 +121,9 @@ This is the backend server for **TourNest**, a full-stack tourism and travel man
 
 | Method | Endpoint       | Middleware                 | Description                                              |
 | ------ | -------------- | -------------------------- | -------------------------------------------------------- |
-| `GET`  | `/admin/stats` | `verifyJwt`, `verifyAdmin` | Get totals: payments, guides, clients, stories, packages. Payment trends |
+| `GET`  | `/admin/stats` | `verifyJwt`, `verifyAdmin` | Get Admin stats |
+| `GET`  | `/tourist/stats` | `verifyJwt`, `verifyTourist` | Get Tourist stats |
+| `GET`  | `/tourGuide/stats` | `verifyJwt`, `verifyTourGuide` | Get tour guide stats |
 
 ---
 
