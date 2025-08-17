@@ -846,7 +846,7 @@ async function run() {
       }
     });
 
-    // admin stats
+    // stats api
     app.get("/admin/stats", verifyJwt, verifyAdmin, async (req, res) => {
       try {
         const totalPaymentsResult = await paymentsCollection
@@ -862,8 +862,44 @@ async function run() {
         const totalPackages = await packagesCollection.countDocuments();
         const totalStories = await storiesCollection.countDocuments();
 
+        const paymentsTrendData = await paymentsCollection
+          .aggregate([
+            {
+              $group: {
+                _id: {
+                  year: { $year: { $toDate: "$paymentAt" } },
+                  month: { $month: { $toDate: "$paymentAt" } },
+                },
+                totalPayments: { $sum: "$price" },
+              },
+            },
+            { $sort: { "_id.year": 1, "_id.month": 1 } },
+          ])
+          .toArray();
+
+        const monthNames = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+
+        const paymentsTrend = paymentsTrendData.map((item) => ({
+          month: `${monthNames[item._id.month - 1]} ${item._id.year}`,
+          payments: item.totalPayments,
+        }));
+
         res.send({
           totalPayments: totalPaymentsResult[0]?.total || 0,
+          paymentsTrend,
           totalTourGuides,
           totalClients,
           totalPackages,

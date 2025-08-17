@@ -117,11 +117,11 @@ This is the backend server for **TourNest**, a full-stack tourism and travel man
 
 ---
 
-### 📊 Admin Stats
+### 📊 Stats
 
 | Method | Endpoint       | Middleware                 | Description                                              |
 | ------ | -------------- | -------------------------- | -------------------------------------------------------- |
-| `GET`  | `/admin/stats` | `verifyJwt`, `verifyAdmin` | Get totals: payments, guides, clients, stories, packages |
+| `GET`  | `/admin/stats` | `verifyJwt`, `verifyAdmin` | Get totals: payments, guides, clients, stories, packages. Payment trends |
 
 ---
 
